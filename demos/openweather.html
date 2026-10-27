@@ -99,12 +99,26 @@
         <span id="weather_conditions"></span>
       </p>
     </div>
+    <section class="architecture" aria-labelledby="architecture-title">
+      <p class="eyebrow">REQUEST ARCHITECTURE</p>
+      <h2 id="architecture-title">The browser never receives the provider key</h2>
+      <p>The browser sends only the ZIP code to a narrowly scoped Cloudflare Worker. The Worker validates the request, applies a rate limit, calls OpenWeather with a server-side secret, and returns only the data the interface needs.</p>
+      <div class="architecture-flow" role="img" aria-label="Flow from browser ZIP input to Cloudflare Worker, then to OpenWeather Geocoding and One Call APIs, then back to the browser for display. The API key is stored only as a Worker secret.">
+        <div class="architecture-node"><strong>1. Browser</strong><span>Validate ZIP; request /weather?zip=84010</span></div>
+        <div class="architecture-arrow" aria-hidden="true">→</div>
+        <div class="architecture-node"><strong>2. Cloudflare Worker</strong><span>Check origin, method, input, and rate limit</span></div>
+        <div class="architecture-arrow" aria-hidden="true">→</div>
+        <div class="architecture-node"><strong>3. OpenWeather</strong><span>Geocode ZIP, then retrieve forecast</span></div>
+      </div>
+      <p class="architecture-secret"><strong>Secret boundary:</strong> <code>OPENWEATHER_API_KEY</code> is configured in Cloudflare Worker Secrets. It is not embedded in this page or sent to the browser.</p>
+      <p class="small-note">The Worker source and setup instructions are in the <a href="https://github.com/MikeKelley89/openWeatherApi/tree/main/worker">worker/ directory on GitHub</a>. The deployed Worker URL must be configured in the two client scripts after deployment.</p>
+    </section>
     <div id="howItWorks">
       <h2>What's going on?</h2>
       <p>
-        Before explaining the code, it's important to have a high-level overview
-        of exactly what's happening. We're actually using two APIs from
-        <a href="https://openweathermap.org/">OpenWeatherMap.org</a>:
+        The browser no longer calls OpenWeather directly. It calls the
+        Cloudflare Worker, which uses two fixed endpoints from
+        <a href="https://openweathermap.org/">OpenWeather</a> on the server:
       </p>
       <ul>
         <li>
@@ -126,11 +140,11 @@
         </li>
       </ul>
       <p>
-        In this demo, I felt it was easier to ask users for a ZIP code, rather
-        than having them type a city, county, and country location. By taking a
-        ZIP code input by a user, I can first call the Geocoding API to return
-        the latitude and longitude of that ZIP, and pass those to the One Call
-        API 3.0 to return the weather information for that location.
+        The browser sends a five-digit US ZIP code to the Worker. The Worker
+        asks the Geocoding API for latitude and longitude, passes those
+        coordinates to One Call API 3.0, and returns a small JSON response for
+        the page to render. This keeps the provider credential on the server
+        while keeping the browser code simple.
       </p>
       <div class="notificationNote">
         <i class="fa-solid fa-circle-info"></i>
@@ -224,28 +238,26 @@
             <li>Exit the function <span class="codeHints">(line 12)</span>.</li>
           </ol>
           <pre><code class="language-js">
-            function getWeather() {
-              $.ajax({
-                url:
-                  "https://api.openweathermap.org/geo/1.0/zip?zip=" +
-                  document.getElementById("zip").value +
-                  "&appid=48ced08bac40a7979644285e22addce1",
-                error: function (response) {
-                  console.log(response);
-                  $("#apiError").show();
-                  $("#errorCode").text(response.status + ": ");
-                  $("#errorMsg").text(response.statusText);
-                  return false;
-                },
+            $.ajax({
+              url: weatherEndpoint,
+              method: "GET",
+              data: { zip: document.getElementById("zip").value },
+              dataType: "json",
+              success: function (payload) {
+                // The Worker returns location and weather data.
+                // The provider credential stays server-side.
+              },
+              error: function (xhr) {
+                // Display a safe, user-facing error message.
+              }
+            });
           </code></pre>
         </li>
         <li>
-          If the Geocoding API call succeeds, record the response to the console
-          <span class="codeHints">(line 2)</span>, and show the
-          <code>.results</code> paragraphs below the button
-          <span class="codeHints">(line 3)</span>. Additionally, show the
-          <code>#conditions</code> section, and display the name of the location
-          returned from the API <span class="codeHints">(line 4)</span>.
+          If the Worker responds successfully, the client reads the normalized
+          location and weather objects, then updates the results using text
+          insertion. It does not log full provider responses or expose upstream
+          request URLs.
           <pre><code class="language-js">
             success: function (response) {
               console.log(response);
@@ -253,35 +265,39 @@
               $("#conditions").text("Conditions for " + response.name + "...");</code></pre>
         </li>
         <li>
-          Take the
-          <code>&lt;lat&gt;</code> and <code>&lt;lon&gt;</code> results from the
-          Geocoding API and build a request to return weather data for that
-          location.
+          The Worker takes the latitude and longitude from the Geocoding API
+          response and requests weather data. This provider-to-provider step
+          happens server-side, so the browser only needs one request.
           <pre><code class="language-js">
-              $.ajax({
-                url:
-                  "https://api.openweathermap.org/data/3.0/onecall?lat=" +
-                  response.lat +
-                  "&lon=" +
-                  response.lon +
-                  "&exclude=minutely,hourly&appid=48ced08bac40a7979644285e22addce1&units=imperial",
+            // Cloudflare Worker (server-side)
+            const location = await fetchJson(geocodeUrl);
+            const weather = await fetchJson(oneCallUrl);
+
+            return jsonResponse({
+              location: { name: location.name, country: location.country },
+              weather: {
+                current: weather.current || {},
+                daily: weather.daily || [],
+                alerts: weather.alerts || []
+              }
+            }, 200);
           </code></pre>
         </li>
         <li>
           Show the results fields and dynamically insert the values returned
           from the weather API.
           <pre><code class="language-js">
-            success: function (response) {
-              console.log(response);
-    
-              $("#wind_speed").text(response.current.wind_speed);
-              $("#wind_direction").text(response.current.wind_deg);
-              $("#main_temp").text(response.current.temp);
+            success: function (payload) {
+              const weather = payload.weather || {};
+              const current = weather.current || {};
+              const daily = (weather.daily && weather.daily[0]) || {};
+
+              $("#wind_speed").text(current.wind_speed ?? "Unavailable");
+              $("#wind_direction").text(current.wind_deg ?? "Unavailable");
+              $("#main_temp").text(current.temp ?? "Unavailable");
               $("#weather_conditions").text(
-                response.daily[0].summary +
-                  ". Currently it looks like there's " +
-                  response.current.weather[0].description +
-                  "."
+                (daily.summary || "") + " " +
+                (((current.weather || [])[0] || {}).description || "")
               );
           </code></pre>
         </li>
@@ -370,16 +386,21 @@
         </li>
         <li>
           <p>
-            The OpenWeatherMap API doesn't support hashing of your API key for
-            some reason. In my code examples I display my access key, which
-            could be used against me. I thought about replacing the keys in the
-            examples with something like, <code>[your_access_key]</code>, but
-            the keys are still visible in the JavaScript, so that felt
-            pointless.
+            The original version placed the OpenWeather key in browser-side
+            JavaScript, which made it visible to every visitor. I replaced that
+            design with a Cloudflare Worker proxy and a server-side
+            <code>OPENWEATHER_API_KEY</code> secret. The client sends only a ZIP
+            code; the Worker accepts only the expected endpoint and method,
+            validates input, applies an approximate rate limit, and returns
+            sanitized errors instead of raw provider responses.
           </p>
           <p>
-            Instead, I customized my API account to limit the number of accesses
-            to be far below the level where I would have to start paying.
+            This reduces credential exposure, but it does not make the public
+            endpoint private. CORS is a browser control, not authentication, and
+            the rate limit is approximate. Provider-side usage limits and
+            monitoring should remain enabled. See the
+            <a href="https://github.com/MikeKelley89/openWeatherApi/tree/main/worker">Worker setup guide</a>
+            for deployment and testing instructions.
           </p>
         </li>
       </ul>
