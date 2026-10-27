@@ -1,68 +1,75 @@
 # OpenWeather API proxy
 
-This Worker keeps the OpenWeather API key on the server side. It is designed for the public GitHub Pages portfolio at https://mikekelley89.github.io/.
+A Cloudflare Worker that keeps an OpenWeather API key server-side and exposes a limited weather endpoint for a browser-based application.
 
-## Request flow
+## How it works
 
 ```mermaid
 flowchart TD
-    A[Browser: 5-digit ZIP] --> B[Cloudflare Worker]
+    A[Browser: 5-digit US ZIP] --> B[Cloudflare Worker]
     B --> C{Validate origin, method, ZIP}
     C -->|Invalid| D[Return safe error]
     C -->|Valid| E[Apply rate limit]
-    E --> F[Geocoding API]
-    F --> G[One Call API 3.0]
-    G --> H[Return only location, current, daily, alerts]
+    E --> F[OpenWeather Geocoding API]
+    F --> G[OpenWeather One Call API 3.0]
+    G --> H[Return location and selected weather fields]
     H --> I[Browser renders results]
-    J[OPENWEATHER_API_KEY secret] -. used only server-side .-> F
-    J -. used only server-side .-> G
+    J[OPENWEATHER_API_KEY secret] -. server-side only .-> F
+    J -. server-side only .-> G
 ```
 
-The Worker is intentionally not a generic URL proxy. It accepts only a five-digit ZIP code and calls two fixed OpenWeather endpoints.
+The Worker is not a generic URL proxy. It accepts a five-digit US ZIP code and calls fixed OpenWeather endpoints. It returns a reduced response containing location, current conditions, daily forecast data, and weather alerts.
 
-## Deploy it
+## Requirements
 
-1. Create a free Cloudflare account if you do not already have one.
-2. Install Node.js, then open a terminal in this `worker/` directory.
-3. Run `npx wrangler login` and follow the browser sign-in steps.
-4. Add the provider key as a Worker secret. Do not put it in `wrangler.toml` or commit it:
+- A Cloudflare account with Workers enabled.
+- Node.js and npm.
+- An OpenWeather API key with access to One Call API 3.0.
+
+## Configure and deploy
+
+1. Open a terminal in this directory.
+2. Authenticate Wrangler with Cloudflare:
+   ```sh
+   npx wrangler login
+   ```
+3. Configure a unique positive integer for `ratelimits.namespace_id` in `wrangler.toml`.
+4. Add your OpenWeather API key as a Worker secret:
    ```sh
    npx wrangler secret put OPENWEATHER_API_KEY
    ```
-   Paste the **newly rotated** OpenWeather key when prompted. Do not reuse the old key that was exposed in the public repository.
-5. In `wrangler.toml`, change `ratelimits.namespace_id` to a positive integer unique to your Cloudflare account. Keep it numeric.
-6. Deploy:
+   Do not store the key in `wrangler.toml`, client-side code, or source control.
+5. Deploy the Worker:
    ```sh
    npx wrangler deploy
    ```
-7. Copy the deployed Worker URL. It will look like `https://openweather-proxy.<your-account-subdomain>.workers.dev`.
+6. Copy the deployed Worker URL. The endpoint used by the client is the Worker URL followed by `/weather`.
 
-## Connect both demos
+## Configure the client
 
-After deployment, edit these two files and replace the `WORKER_BASE_URL` placeholder with your actual Worker URL (do not include `/weather` at the end):
+Set the client application's weather endpoint to:
 
-- `../static/js/OpenWeather.js`
-- In the portfolio repository: `public/scripts/weather-demo.js`
-
-Use the exact deployed URL followed by `/weather`. The URL is not secret; the OpenWeather key is.
-
-## Test
-
-Replace `<worker-base-url>` with the URL from your deployment:
-
-```sh
-curl -i "https://<worker-base-url>/weather?zip=84010" \
-  -H "Origin: https://mikekelley89.github.io"
+```text
+https://<your-worker-hostname>/weather
 ```
 
-Try an invalid ZIP (for example `abc`) and confirm the Worker returns HTTP 400 without contacting OpenWeather. Requests from an unrelated browser origin should be rejected.
+Replace the example hostname with the URL assigned to your deployed Worker. The Worker URL is public; the OpenWeather API key must remain a Worker secret.
 
-## Security and operational notes
+## Test the endpoint
 
-- Rotate/revoke the previously exposed OpenWeather key. Removing a key from the latest source does not remove it from Git history or copies already downloaded.
-- The secret protects the provider credential from browser visitors; the public Worker endpoint itself is still public.
-- The rate-limit binding is approximate and location-local, not a strict global quota. It is a basic safeguard, not an abuse-proof billing control.
-- CORS restricts compliant browsers, but it is not authentication and does not prevent non-browser clients from calling the endpoint.
-- Keep OpenWeather usage limits and account monitoring enabled. A public proxy can still consume your provider quota.
-- The Worker intentionally returns generic upstream errors and never forwards the provider response body.
-- The sample only displays the first weather alert, if multiple alerts are returned.
+Replace `<your-worker-hostname>` with your deployed Worker hostname:
+
+```sh
+curl -i "https://<your-worker-hostname>/weather?zip=84010" \
+  -H "Origin: https://your-application.example"
+```
+
+Use an origin allowed by the Worker configuration. Also test an invalid ZIP code, such as `abc`, and confirm that the Worker returns HTTP 400. Requests from origins not allowed by the Worker should not receive a successful browser response.
+
+## Security and limitations
+
+- The API key is available only to the Worker runtime and is not returned to the browser.
+- The endpoint is public. CORS is a browser control, not authentication, and does not prevent direct requests from non-browser clients.
+- The rate limiter is approximate and is not a strict global quota or a guarantee against abuse. Use provider-side usage limits and monitor API consumption.
+- Upstream failures are returned as generic errors rather than forwarding the provider's response body.
+- The example displays only the first weather alert when multiple alerts are returned.
