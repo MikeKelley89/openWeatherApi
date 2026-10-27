@@ -363,48 +363,44 @@ function showError(xhr, fallback) {
     </div>
     <div id="acknowledgements">
       <h2>Tools and references</h2>
-      <p>The application and page were implemented by me, using the following documentation, development tools, and libraries as references or dependencies:</p>
-      <ul>
-        <li>The OpenWeatherMap.org API</li>
-        <li>The HTML/CSS/JS was hand-written, by me, in Visual Studio Code</li>
+      <p>I wrote the original HTML, CSS, and JavaScript myself. I used AI assistance for the Cloudflare Worker and then to make targeted updates to the existing code and documentation. These are the main APIs, references, libraries, and tools used in the project:</p>
+      <ol>
+        <li><a href="https://openweathermap.org/">OpenWeatherMap.org API</a></li>
+        <li>HTML, CSS, and JavaScript, hand-written by me, with AI assistance for the Cloudflare Worker step and related integration updates</li>
         <li>
           Tom Johnson's
           <a href="https://idratherbewriting.com/">I'd Rather Be Writing</a>
           blog
         </li>
-        <li>StackOverflow</li>
-        <li>Custom CSS, with no Bootstrap dependency</li>
-        <li>jQuery</li>
-        <li>
-          <a href="https://prismjs.com/">Prism.js</a> (for the syntax
-          highlighting)
-        </li>
-        <li><a href="https://fontawesome.com/">FontAwesome</a></li>
-        <li>Git/GitHub/GitHub Pages</li>
-        <li>Postman</li>
-      </ul>
+        <li><a href="https://stackoverflow.com/">Stack Overflow</a></li>
+        <li><a href="https://jquery.com/">jQuery</a></li>
+        <li><a href="https://prismjs.com/">Prism.js</a> for syntax highlighting</li>
+        <li>Git, GitHub, and GitHub Pages</li>
+        <li><a href="https://www.postman.com/">Postman</a></li>
+        <li><a href="https://chatgpt.com/">ChatGPT</a> for AI-assisted problem analysis, Worker implementation, code updates, and documentation review</li>
+      </ol>
     </div>
 
     <section id="ai-workflow" class="ai-workflow" aria-labelledby="ai-workflow-title">
       <p class="eyebrow">AI-assisted development</p>
       <h2 id="ai-workflow-title">Using AI as part of the engineering workflow</h2>
       <p>
-        I used AI as a practical development partner to improve the security and maintainability of this project, starting with my existing code rather than generating a separate example from scratch. The goal was to keep the application working while addressing a real security issue: a browser-side OpenWeather API key could be extracted by anyone visiting the page.
+        I wrote the original HTML, CSS, and JavaScript for this demo. When I identified that the OpenWeather API key was exposed in browser-side code, I used ChatGPT to help analyze the security problem and design a Cloudflare Worker proxy so the key could be stored as a server-side secret instead.
       </p>
 
-      <h3>From security problem to implementation</h3>
+      <h3>Prompting AI toward a concrete engineering solution</h3>
       <p>
-        I worked with AI to evaluate the client-side design and develop a Cloudflare Worker that acts as a server-side proxy. The API credential is stored as a Worker secret instead of being sent to the browser. The Worker validates ZIP-code input, restricts browser access through CORS, applies an approximate rate limit when configured, handles upstream timeouts and failures, and returns a reduced response with safe error messages.
+        I used the existing repository, its code, and the intended request flow as context, then directed the AI-assisted work toward a specific goal: keep the key out of the browser while preserving the demo's behavior. The resulting Worker validates ZIP-code input, applies CORS restrictions and an approximate rate limit when configured, handles upstream timeouts and failures, and returns a reduced response with safe error messages.
       </p>
 
-      <h3>Working in the existing repository</h3>
+      <h3>Applying changes to the original project</h3>
       <p>
-        I then used AI tooling to make targeted changes directly to the existing project: updating the client to call the Worker, aligning the walkthrough examples with the current implementation, revising setup documentation, and committing changes to GitHub. That workflow let me use AI for code analysis, implementation, documentation maintenance, and repository changes while keeping the work tied to the actual source files.
+        After working through the Worker implementation, I used AI tooling to modify the existing project directly: updating the client to call the Worker, bringing the walkthrough examples into line with the implementation, revising setup documentation, and committing the changes to GitHub. This was an applied workflow across problem analysis, prompting, code changes, documentation, and version control, not a standalone AI-generated sample.
       </p>
 
-      <h3>My role and the engineering trade-offs</h3>
+      <h3>Human direction and review</h3>
       <p>
-        The value was not simply asking AI to write code. It was defining the problem, providing repository context, directing changes toward the existing architecture, checking that the examples matched the implementation, and documenting the security decisions and remaining limitations. AI accelerated the work, but its output still requires review and testing.
+        My contribution was to identify the problem, supply relevant project context, specify the intended behavior, guide the changes, and check consistency between the code and its explanation. AI helped accelerate implementation, but generated changes still need human review and testing. I treat it as a development tool, not as a substitute for engineering judgment.
       </p>
       <p>
         This implementation reduces exposure of the API credential; it does not make a public endpoint private. CORS is not authentication, and the rate limiter is approximate. Provider usage limits, monitoring, and further testing remain important. Those limitations are documented alongside the implementation rather than hidden behind the use of AI.
