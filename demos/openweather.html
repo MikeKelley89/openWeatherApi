@@ -3,8 +3,8 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Weather API Demo | Mike Kelley</title>
-    <meta name="description" content="An interactive OpenWeather API example with a documented walkthrough of the implementation, trade-offs, and limitations." />
+    <title>OpenWeather API Integration: Implementation Walkthrough | Mike Kelley</title>
+    <meta name="description" content="A technical walkthrough of a weather application, covering API integration, input validation, asynchronous JavaScript, server-side credential management, and design trade-offs." />
     <meta name="theme-color" content="#f7f8f6" />
     <script src="https://code.jquery.com/jquery-2.1.1.min.js"></script>
 
@@ -42,9 +42,9 @@
     </header>
     <main id="main" class="wrap">
     <section class="page-hero">
-      <p class="eyebrow">CODE DEMO / API INTEGRATION</p>
-      <h1>OpenWeather API: from ZIP code to forecast</h1>
-      <p class="lede">A small working application and a walkthrough of how it works. This project demonstrates API integration, form validation, asynchronous requests, front-end behavior, and technical communication.</p>
+      <p class="eyebrow">TECHNICAL WALKTHROUGH / API INTEGRATION</p>
+      <h1>OpenWeather API integration: from ZIP code to weather data</h1>
+      <p class="lede">This project demonstrates a complete request flow from user input to an external API response, along with the implementation details and trade-offs behind it. The walkthrough covers client-side validation, asynchronous requests, server-side credential handling, response processing, and areas for further development.</p>
     </section>
     <div id="weatherForm">
       <form id="localWeather">
@@ -111,32 +111,25 @@
         <div class="architecture-node"><strong>3. OpenWeather</strong><span>Geocode ZIP, then retrieve forecast</span></div>
       </div>
       <p class="architecture-secret"><strong>Secret boundary:</strong> <code>OPENWEATHER_API_KEY</code> is configured in Cloudflare Worker Secrets. It is not embedded in this page or sent to the browser.</p>
-      <p class="small-note">The Worker source and setup instructions are in the <a href="https://github.com/MikeKelley89/openWeatherApi/tree/main/worker">worker/ directory on GitHub</a>. The deployed Worker URL must be configured in the two client scripts after deployment.</p>
+      <p class="small-note">The <a href="https://github.com/MikeKelley89/openWeatherApi/tree/main/worker">Worker source and setup documentation</a> describe the server-side request handling and configuration.</p>
     </section>
     <div id="howItWorks">
-      <h2>What's going on?</h2>
+      <h2>Architecture overview</h2>
       <p>
-        The browser no longer calls OpenWeather directly. It calls the
-        Cloudflare Worker, which uses two fixed endpoints from
-        <a href="https://openweathermap.org/">OpenWeather</a> on the server:
+        The browser does not call OpenWeather directly. It sends the ZIP code to a Cloudflare Worker, which makes two requests to <a href="https://openweathermap.org/">OpenWeather</a>:
       </p>
       <ul>
         <li>
           <a href="https://openweathermap.org/api/geocoding-api"
             >Geocoding API</a
           >
-          - Translates either a location name (city, county, country), or a ZIP
-          code to latitude and longitude.
+          - Resolves a supported location or ZIP code to latitude and longitude coordinates.
         </li>
         <li>
           <a href="https://openweathermap.org/api/one-call-3"
             >One Call API 3.0</a
           >
-          - Returns the weather data we're looking for of a specific location.
-          Unfortunately, it <em>requires</em> that the location input be
-          latitude and longitude. I feel most people don't know the
-          <code>&lt;lat&gt;</code> and <code>&lt;lon&gt;</code> for their
-          location offhand (I know I don't).
+          - Returns weather data for a location specified by latitude and longitude. Accepting a ZIP code in the interface avoids requiring users to supply geographic coordinates.
         </li>
       </ul>
       <p>
@@ -149,27 +142,18 @@
       <div class="notificationNote">
         <i class="fa-solid fa-circle-info"></i>
         <p>
-          For US ZIP codes, the Geocoding API supports <em>only</em> 5-digit
-          codes, and not the ZIP+4 format. I specifically chose to limit the ZIP
-          validator and API call to US ZIP codes.
+          The interface accepts five-digit US ZIP codes. ZIP+4 values are outside the scope of this example.
         </p>
       </div>
-      <h2>How it works</h2>
-      <p>
-        I use the jQuery language library to make writing and reading the code a
-        bit easier. The overall workflow is:
-      </p>
+      <h2>Client request flow</h2>
+      <p>The client uses jQuery to handle form submission, send an asynchronous request to the Worker, and update the interface. The main steps are outlined below. Code samples are simplified excerpts intended to illustrate the request flow.</p>
       <ol>
         <li>
           <p>
-            Disable the default behavior of pressing <code>[Enter]</code> in the
-            form field <span class="codeHints">(line 2)</span>.
+            Prevent the browser's default form submission so the request can be handled asynchronously.
           </p>
           <p>
-            When it's detected that the form is submitted (by pressing
-            <code>[Enter]</code> or clicking the button), call the
-            <code>getWeather();</code> function, which is where I do the API
-            calls <span class="codeHints">(line 3)</span>.
+            When the form is submitted, prevent a page reload and run the client-side request handler.
           </p>
           <pre><code class="language-js">
             $("#localWeather").submit(function (event) {
@@ -179,23 +163,13 @@
           </code></pre>
         </li>
         <li>
-          Whenever a user presses and lets go of a keyboard key while the focus
-          is in the ZIP code input box <span class="codeHints">(line 1)</span>,
-          validate the current value of the ZIP code field against a regular
-          expression <span class="codeHints">(lines 2-3)</span>.
+          As the ZIP-code field changes, validate its current value against a regular expression.
           <ol>
             <li>
-              If the current ZIP matches the regex
-              <span class="codeHints">(line 4)</span>, hide the "Invalid ZIP"
-              message <span class="codeHints">(line 5)</span> and enable the
-              submit button <span class="codeHints">(line 6)</span>.
+              If the value matches the expected five-digit format, hide the validation message and enable the submit button.
             </li>
             <li>
-              If the current ZIP doesn't match the regex
-              <span class="codeHints">(line 7)</span>, show an error message
-              <span class="codeHints">(line 8)</span>, disable the submit button
-              <span class="codeHints">(line 9)</span>, and hide any previous
-              results <span class="codeHints">(line 10)</span>.
+              If the value does not match, show a validation message, disable submission, and clear any previous result.
             </li>
           </ol>
           <pre><code class="language-js">
@@ -215,27 +189,20 @@
         </li>
         <li>
           <p>
-            Once the ZIP is a valid pattern and the user presses
-            <code>[Enter]</code> or clicks the button, build a request with the
-            user-provided ZIP and submit a call to the Geocoding API
-            <span class="codeHints">(lines 2-6)</span>. The Geocoding API
-            translates the US ZIP code to latitude and longitude coordinates.
+            After submission, the browser sends the ZIP code to the Worker. The Worker resolves the ZIP code to coordinates through the Geocoding API, then requests weather data.
           </p>
           <p>If the API call returns an error:</p>
           <ol>
             <li>
-              Record the response to the console
-              <span class="codeHints">(line 8)</span>.
+              Use the response status to determine the appropriate error state.
             </li>
             <li>
-              Show the API error callout
-              <span class="codeHints">(line 9)</span>.
+              Display an error message in the interface.
             </li>
             <li>
-              Fill the API error callout with the details of the error
-              <span class="codeHints">(lines 10-11)</span>.
+              Show a safe, user-facing explanation without exposing raw upstream details.
             </li>
-            <li>Exit the function <span class="codeHints">(line 12)</span>.</li>
+            <li>Stop processing the failed request.</li>
           </ol>
           <pre><code class="language-js">
             $.ajax({
@@ -254,10 +221,7 @@
           </code></pre>
         </li>
         <li>
-          If the Worker responds successfully, the client reads the normalized
-          location and weather objects, then updates the results using text
-          insertion. It does not log full provider responses or expose upstream
-          request URLs.
+          If the Worker responds successfully, the client reads the returned location and weather objects and updates the interface using text insertion. The Worker returns only the fields needed by the page.
           <pre><code class="language-js">
             success: function (response) {
               console.log(response);
@@ -265,9 +229,7 @@
               $("#conditions").text("Conditions for " + response.name + "...");</code></pre>
         </li>
         <li>
-          The Worker takes the latitude and longitude from the Geocoding API
-          response and requests weather data. This provider-to-provider step
-          happens server-side, so the browser only needs one request.
+          The Worker uses the coordinates returned by the Geocoding API to request weather data. Both provider requests happen server-side, so the browser makes a single request to the Worker.
           <pre><code class="language-js">
             // Cloudflare Worker (server-side)
             const location = await fetchJson(geocodeUrl);
@@ -284,8 +246,7 @@
           </code></pre>
         </li>
         <li>
-          Show the results fields and dynamically insert the values returned
-          from the weather API.
+          The client displays the returned values, with fallback text for fields that are missing.
           <pre><code class="language-js">
             success: function (payload) {
               const weather = payload.weather || {};
@@ -303,13 +264,10 @@
         </li>
         <li>
           <p>
-            If there's a weather alert for the specified location, show the
-            alert box and populate with the alert details returned from the API.
+            If the response includes weather alerts, display the first alert and populate the interface with its details.
           </p>
           <p>
-            The <code>start</code> and <code>end</code> times are returned as
-            Unix UTC time, so convert them to a more human readable format
-            <span class="codeHints">(lines 5-8)</span>.
+            The <code>start</code> and <code>end</code> values are Unix timestamps in seconds. The client converts them to JavaScript dates and formats them for display.
           </p>
 
           <pre><code class="language-js">
@@ -329,59 +287,25 @@
       </ol>
     </div>
     <div id="lessons">
-      <h2>Lessons learned</h2>
-      <p>
-        The most important thing I can ask you, the reader, is to realize this
-        is not an enterprise-grade product. I never intended it to be. The
-        purpose of all this is to demonstrate my technical competency, show that
-        I can make an API call and display the returned data, and then document
-        it.
-      </p>
-      <p>
-        That said, years of working as a QA software tester, doing hobbyist
-        programming, exposure to enterprise products, and my technical writing
-        acumen, I'm aware of many shortcomings in both the product and the
-        documentation. The purpose for leaving those shortcomings, when I know
-        about them, is to demonstrate that I can recognize problems, issues, or
-        shortfalls, and then vocalize them.
-      </p>
-      <h3>"Product" shortcomings, caveats</h3>
-      <p>Here's my analysis of the demo product:</p>
+      <h2>Limitations and potential improvements</h2>
+      <p>This is a focused portfolio application, not a production weather service. Its purpose is to demonstrate API integration and to document the reasoning behind the implementation. Reviewing the limitations also identifies the work required to make the application more robust.</p>
+      <h3>Application limitations</h3>
+      <p>The current implementation has several known areas for improvement:</p>
       <ul>
         <li>
           <p>
-            I disabled the form's default behavior when pressing
-            <code>[Enter]</code> and made it so <code>[Enter]</code> submits the
-            form. I do not prevent the user from submitting the form via
-            <code>[Enter]</code>, even if the ZIP validator recognizes issues
-            with the input (such as too many numbers, too few numbers, or
-            letters).
-          </p>
-          <p>
-            I made an attempt to configure this functionality, but after 20-30
-            minutes of failure, moved on. Again, this is not intended to be
-            enterprise-grade software, but a demonstration.
+            Client-side validation improves feedback but is not a security boundary. The Worker independently validates the incoming ZIP code, so malformed requests are not accepted simply because they bypass the browser interface. Automated tests would help verify form behavior for keyboard submission and invalid input.
           </p>
         </li>
         <li>
-          The ZIP validator checks only if the input is exactly 5 digits. It
-          doesn't care if those 5 digits are an actual ZIP code or not. I could
-          leverage another API to verify the input is a legitimate US ZIP code,
-          but that goes beyond the scope of this project.
+          The ZIP validator checks format, not whether the ZIP code maps to a valid location. The Geocoding API provides the next validation step by determining whether the location can be resolved.
         </li>
         <li>
           <p>
-            There are cases where multiple alerts could be returned by the
-            weather API, such as strong weather near a body of water. There
-            could be an alert for wind, an alert for lightning, an alert for a
-            tornado-warning, and an alert for small watercraft advisory.
+            The API can return multiple alerts for a location, each with a different event, time window, and description.
           </p>
           <p>
-            I display only the first alert in the returned
-            <code>alerts</code> array. I could loop through the array and
-            provide details for every alert in the array, but displaying the
-            first alert was sufficient for my needs, and my time was better
-            spent polishing the page and documentation.
+            The interface currently displays only the first item in the returned <code>alerts</code> array. A more complete implementation would render each alert separately and ensure that users can distinguish overlapping or concurrent events.
           </p>
         </li>
         <li>
@@ -404,44 +328,22 @@
           </p>
         </li>
       </ul>
-      <h3>Documentation</h3>
-      <p>This is my analysis of my documentation:</p>
+      <h3>Documentation considerations</h3>
+      <p>The walkthrough also has opportunities for improvement:</p>
       <ul>
         <li>
-          The style I wrote this page in is very informal. This works for some
-          organizations, but not for others. I can adapt my tone and style as
-          needed.
+          The original narrative uses a conversational tone. For a product or enterprise audience, a more formal style, clearer task-oriented headings, and concise explanations can make the material easier to scan and maintain.
         </li>
         <li>
           <p>
-            The "code line" hints within the explanations could cause
-            disorientation. A user could be reading the explanation, see the
-            code line hint, look down at the code, find the line number, read
-            the code, then have to go back up to the explanation.
-          </p>
-          <p>
-            This can cause the reader to lose their place or could feel
-            disorienting. The alternative is to put the code explanations in the
-            code example, using code comments, and reducing the amount of text
-            in the <em>How it works</em> section. The caveat to this, though, is
-            that it would balloon the size of the code examples. In the end, I
-            decided to try to keep the code examples as small as possible.
-          </p>
-          <p>
-            Another issue with this approach is when the code examples are
-            updated, the manually written code line hints could become incorrect
-            (if not carefully checked), causing frustration to the reader.
+            References to specific line numbers require maintenance whenever the source changes and can interrupt the reading flow. A stronger approach is to link to stable source locations where possible, keep examples focused, and use comments only when they clarify behavior that is not obvious from the code itself.
           </p>
         </li>
       </ul>
     </div>
     <div id="acknowledgements">
-      <h2>Acknowledgements</h2>
-      <p>
-        I coded this tool and this page (including the callout styles) on my
-        own, but I still had a lot of help. These are the resources/tools I
-        used:
-      </p>
+      <h2>Tools and references</h2>
+      <p>The application and page were implemented by me, using the following documentation, development tools, and libraries as references or dependencies:</p>
       <ul>
         <li>The OpenWeatherMap.org API</li>
         <li>The HTML/CSS/JS was hand-written, by me, in Visual Studio Code</li>
@@ -465,7 +367,7 @@
     <div>
       <h2>About me</h2>
       <p>
-        I bring more than 15 years of technical documentation experience, with work spanning software, APIs, cybersecurity, aviation, and enterprise products. My background also includes hands-on programming and QA testing.
+        I bring more than 15 years of technical documentation experience across software, APIs, cybersecurity, aviation, and enterprise products, supported by hands-on programming and software QA experience.
       </p>
       <ul>
         <li><a href="https://www.linkedin.com/in/mike-kelley/">LinkedIn</a></li>
