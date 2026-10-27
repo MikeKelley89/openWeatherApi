@@ -150,138 +150,169 @@
       <ol>
         <li>
           <p>
-            Prevent the browser's default form submission so the request can be handled asynchronously.
-          </p>
-          <p>
-            When the form is submitted, prevent a page reload and run the client-side request handler.
+            Validate the ZIP code as the user edits the field. The client enables submission only when the value contains exactly five digits. The Worker repeats this validation because client-side checks can be bypassed.
           </p>
           <pre><code class="language-js">
-            $("#localWeather").submit(function (event) {
-              event.preventDefault();
-              getWeather();
-            });
-          </code></pre>
-        </li>
-        <li>
-          As the ZIP-code field changes, validate its current value against a regular expression.
-          <ol>
-            <li>
-              If the value matches the expected five-digit format, hide the validation message and enable the submit button.
-            </li>
-            <li>
-              If the value does not match, show a validation message, disable submission, and clear any previous result.
-            </li>
-          </ol>
-          <pre><code class="language-js">
-            $("#zip").on("keyup", function () {
-              var zipValidate = new RegExp(/(^\d{5})$/);
-              var isValid = this.value.match(zipValidate);
-              if (isValid) {
-                $("#zipStatus").hide();
-                $("#findWeather").removeAttr("disabled", true);
-              } else {
-                $("#zipStatus").show();
-                $("#findWeather").attr("disabled", true);
-                $(".results").hide();
-              }
-            });
-          </code></pre>
-        </li>
-        <li>
-          <p>
-            After submission, the browser sends the ZIP code to the Worker. The Worker resolves the ZIP code to coordinates through the Geocoding API, then requests weather data.
-          </p>
-          <p>If the API call returns an error:</p>
-          <ol>
-            <li>
-              Use the response status to determine the appropriate error state.
-            </li>
-            <li>
-              Display an error message in the interface.
-            </li>
-            <li>
-              Show a safe, user-facing explanation without exposing raw upstream details.
-            </li>
-            <li>Stop processing the failed request.</li>
-          </ol>
-          <pre><code class="language-js">
-            $.ajax({
-              url: weatherEndpoint,
-              method: "GET",
-              data: { zip: document.getElementById("zip").value },
-              dataType: "json",
-              success: function (payload) {
-                // The Worker returns location and weather data.
-                // The provider credential stays server-side.
-              },
-              error: function (xhr) {
-                // Display a safe, user-facing error message.
-              }
-            });
-          </code></pre>
-        </li>
-        <li>
-          If the Worker responds successfully, the client reads the returned location and weather objects and updates the interface using text insertion. The Worker returns only the fields needed by the page.
-          <pre><code class="language-js">
-            success: function (response) {
-              console.log(response);
-              $(".results").show();
-              $("#conditions").text("Conditions for " + response.name + "...");</code></pre>
-        </li>
-        <li>
-          The Worker uses the coordinates returned by the Geocoding API to request weather data. Both provider requests happen server-side, so the browser makes a single request to the Worker.
-          <pre><code class="language-js">
-            // Cloudflare Worker (server-side)
-            const location = await fetchJson(geocodeUrl);
-            const weather = await fetchJson(oneCallUrl);
+function validZip(value) {
+  return /^\\d{5}$/.test(value);
+}
 
-            return jsonResponse({
-              location: { name: location.name, country: location.country },
-              weather: {
-                current: weather.current || {},
-                daily: weather.daily || [],
-                alerts: weather.alerts || []
-              }
-            }, 200);
-          </code></pre>
-        </li>
-        <li>
-          The client displays the returned values, with fallback text for fields that are missing.
-          <pre><code class="language-js">
-            success: function (payload) {
-              const weather = payload.weather || {};
-              const current = weather.current || {};
-              const daily = (weather.daily && weather.daily[0]) || {};
+$zip.on("input", function () {
+  const zip = this.value.trim();
+  const valid = validZip(zip);
 
-              $("#wind_speed").text(current.wind_speed ?? "Unavailable");
-              $("#wind_direction").text(current.wind_deg ?? "Unavailable");
-              $("#main_temp").text(current.temp ?? "Unavailable");
-              $("#weather_conditions").text(
-                (daily.summary || "") + " " +
-                (((current.weather || [])[0] || {}).description || "")
-              );
+  $button.prop("disabled", !valid);
+  $("#zipStatus").toggle(!valid);
+
+  if (!valid) clearWeather();
+});
           </code></pre>
         </li>
         <li>
           <p>
-            If the response includes weather alerts, display the first alert and populate the interface with its details.
+            Intercept form submission, validate again, clear any previous results, and disable the button while the request is in progress.
           </p>
-          <p>
-            The <code>start</code> and <code>end</code> values are Unix timestamps in seconds. The client converts them to JavaScript dates and formats them for display.
-          </p>
-
           <pre><code class="language-js">
-            if (response.alerts) {
-              $("#alert").show();
-              $("div#alert #sender_name").text(response.alerts[0].sender_name);
-              $("div#alert #event").text(response.alerts[0].event);
-              var start = new Date(response.alerts[0].start * 1000);
-              var end = new Date(response.alerts[0].end * 1000);
-              $("div#alert #start").text(start.toLocaleTimeString("default"));
-              $("div#alert #end").text(end.toLocaleTimeString("default"));
-              $("div#alert #description").text(response.alerts[0].description);
-              $("div#alert #tags").text(response.alerts[0].tags[0]);
-            }
+$form.on("submit", function (event) {
+  event.preventDefault();
+  const zip = $zip.val().trim();
+
+  if (!validZip(zip)) {
+    $("#zipStatus").show();
+    return;
+  }
+
+  clearWeather();
+  $button.prop("disabled", true);
+
+  // The asynchronous request follows.
+});
+          </code></pre>
+        </li>
+        <li>
+          <p>
+            Send one GET request to the Worker. The ZIP code is a query parameter; the browser does not call OpenWeather directly and does not receive the API key.
+          </p>
+          <pre><code class="language-js">
+$.ajax({
+  url: weatherEndpoint,
+  method: "GET",
+  data: { zip: zip },
+  dataType: "json",
+  timeout: 12000
+}).done(function (payload) {
+  // Render the returned location and weather data.
+}).fail(function (xhr, textStatus) {
+  // Display a safe error message.
+}).always(function () {
+  $button.prop("disabled", !validZip($zip.val().trim()));
+});
+          </code></pre>
+        </li>
+        <li>
+          <p>
+            The Worker validates the request and calls the Geocoding API, then One Call API 3.0. It returns a reduced response with a <code>location</code> object and a <code>weather</code> object. This excerpt shows the successful response shape.
+          </p>
+          <pre><code class="language-js">
+// Cloudflare Worker: response payload
+return jsonResponse({
+  location: {
+    name: typeof location.name === "string"
+      ? location.name
+      : "Selected location",
+    country: typeof location.country === "string"
+      ? location.country
+      : "US"
+  },
+  weather: {
+    current: weather.current || {},
+    daily: Array.isArray(weather.daily) ? weather.daily : [],
+    alerts: Array.isArray(weather.alerts) ? weather.alerts : []
+  }
+}, 200, ALLOWED_ORIGIN);
+          </code></pre>
+        </li>
+        <li>
+          <p>
+            Read the response using the same property paths returned by the Worker. The client checks optional fields before displaying them and inserts values with <code>.text()</code>, rather than interpreting API data as HTML.
+          </p>
+          <pre><code class="language-js">
+const location = payload.location || {};
+const weather = payload.weather || {};
+const current = weather.current || {};
+const daily = (weather.daily && weather.daily[0]) || {};
+const currentCondition = (current.weather && current.weather[0]) || {};
+
+$("#conditions").text(
+  "Conditions for " + (location.name || "Selected location") +
+  ", " + (location.country || "US") + "..."
+);
+$("#main_temp").text(
+  Number.isFinite(current.temp) ? Math.round(current.temp) : "Unavailable"
+);
+$("#wind_speed").text(
+  Number.isFinite(current.wind_speed) ? current.wind_speed : "Unavailable"
+);
+$("#wind_direction").text(
+  Number.isFinite(current.wind_deg) ? current.wind_deg : "Unavailable"
+);
+$("#weather_conditions").text(
+  (daily.summary ? daily.summary + " " : "") +
+  (currentCondition.description
+    ? "Currently: " + currentCondition.description + "."
+    : "Current conditions are unavailable.")
+);
+          </code></pre>
+        </li>
+        <li>
+          <p>
+            If the response includes weather alerts, the client displays the first alert. The API returns alert timestamps in Unix seconds, so the client multiplies them by 1,000 before creating JavaScript <code>Date</code> objects. Missing alert fields receive fallback text.
+          </p>
+          <pre><code class="language-js">
+const alerts = Array.isArray(weather.alerts) ? weather.alerts : [];
+if (alerts.length) {
+  const alert = alerts[0];
+
+  $("#sender_name").text(alert.sender_name || "Weather service");
+  $("#event").text(alert.event || "Weather alert");
+  $("#start").text(
+    alert.start ? new Date(alert.start * 1000).toLocaleString() : "Not provided"
+  );
+  $("#end").text(
+    alert.end ? new Date(alert.end * 1000).toLocaleString() : "Not provided"
+  );
+  $("#description").text(alert.description || "No description provided.");
+  $("#tags").text(
+    Array.isArray(alert.tags) ? alert.tags.join(", ") : "Not provided"
+  );
+  $alert.show();
+}
+          </code></pre>
+        </li>
+        <li>
+          <p>
+            On failure, the client reads the Worker's structured <code>error.message</code> when available. Otherwise, it uses a generic message, with a separate timeout explanation. The Worker maps upstream errors to safe messages rather than forwarding provider response bodies.
+          </p>
+          <pre><code class="language-js">
+function showError(xhr, fallback) {
+  const payload = xhr.responseJSON || {};
+  const message = payload.error && payload.error.message
+    ? payload.error.message
+    : fallback;
+
+  $("#errorCode").text(xhr.status ? xhr.status + ": " : "");
+  $("#errorMsg").text(message);
+  $apiError.show();
+}
+
+}).fail(function (xhr, textStatus) {
+  showError(
+    xhr,
+    textStatus === "timeout"
+      ? "The request timed out. Please try again."
+      : "The weather service could not complete the lookup."
+  );
+});
           </code></pre>
         </li>
       </ol>
