@@ -25,8 +25,8 @@ function jsonResponse(body, status, origin = ALLOWED_ORIGIN, extraHeaders = {}) 
   });
 }
 
-function errorResponse(message, status, origin) {
-  return jsonResponse({ error: { message } }, status, origin);
+function errorResponse(message, status, origin, extraHeaders = {}) {
+  return jsonResponse({ error: { message } }, status, origin, extraHeaders);
 }
 
 async function fetchJson(url) {
