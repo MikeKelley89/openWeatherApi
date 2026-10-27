@@ -305,7 +305,7 @@ function showError(xhr, fallback) {
   $apiError.show();
 }
 
-}).fail(function (xhr, textStatus) {
+.fail(function (xhr, textStatus) {
   showError(
     xhr,
     textStatus === "timeout"
