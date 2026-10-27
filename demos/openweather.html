@@ -385,6 +385,35 @@ function showError(xhr, fallback) {
       </ul>
     </div>
 
+    <section id="ai-workflow" class="ai-workflow" aria-labelledby="ai-workflow-title">
+      <p class="eyebrow">AI-assisted development</p>
+      <h2 id="ai-workflow-title">Using AI as part of the engineering workflow</h2>
+      <p>
+        I used AI as a practical development partner to improve the security and maintainability of this project, starting with my existing code rather than generating a separate example from scratch. The goal was to keep the application working while addressing a real security issue: a browser-side OpenWeather API key could be extracted by anyone visiting the page.
+      </p>
+
+      <h3>From security problem to implementation</h3>
+      <p>
+        I worked with AI to evaluate the client-side design and develop a Cloudflare Worker that acts as a server-side proxy. The API credential is stored as a Worker secret instead of being sent to the browser. The Worker validates ZIP-code input, restricts browser access through CORS, applies an approximate rate limit when configured, handles upstream timeouts and failures, and returns a reduced response with safe error messages.
+      </p>
+
+      <h3>Working in the existing repository</h3>
+      <p>
+        I then used AI tooling to make targeted changes directly to the existing project: updating the client to call the Worker, aligning the walkthrough examples with the current implementation, revising setup documentation, and committing changes to GitHub. That workflow let me use AI for code analysis, implementation, documentation maintenance, and repository changes while keeping the work tied to the actual source files.
+      </p>
+
+      <h3>My role and the engineering trade-offs</h3>
+      <p>
+        The value was not simply asking AI to write code. It was defining the problem, providing repository context, directing changes toward the existing architecture, checking that the examples matched the implementation, and documenting the security decisions and remaining limitations. AI accelerated the work, but its output still requires review and testing.
+      </p>
+      <p>
+        This implementation reduces exposure of the API credential; it does not make a public endpoint private. CORS is not authentication, and the rate limiter is approximate. Provider usage limits, monitoring, and further testing remain important. Those limitations are documented alongside the implementation rather than hidden behind the use of AI.
+      </p>
+      <p class="ai-workflow-note">
+        <strong>Why include this:</strong> Technical writing and documentation engineering increasingly involve working across code, tools, and delivery workflows. This project demonstrates how I use AI to investigate a problem, implement and document a solution, and maintain consistency between working code and the explanation presented to users.
+      </p>
+    </section>
+
     </main>
     <footer class="site-footer wrap"><span>Mike Kelley · Technical Writing & Documentation Engineering</span><span><a href="https://github.com/MikeKelley89/openWeatherApi">View source on GitHub ↗</a></span></footer>
     <script src="../static/js/OpenWeather.js"></script>
