@@ -187,3 +187,29 @@ a:focus-visible, button:focus-visible, input:focus-visible {
 @media (max-width: 760px) {
   .page-hero { margin-top: 18px; padding: 34px 24px; }
 }
+
+
+/* AI-assisted engineering case study */
+.ai-workflow {
+  margin: 34px 0 64px;
+  padding: clamp(24px, 4vw, 42px);
+  background: #142b4a;
+  color: #e8f0fa;
+  border: 1px solid #304b6c;
+  border-top: 4px solid #f28c28;
+  border-radius: 10px;
+}
+.ai-workflow h2 { color: #fff; }
+.ai-workflow h3 { color: #ffb15d; margin-top: 28px; }
+.ai-workflow p { max-width: 900px; }
+.ai-workflow .eyebrow { color: #ffb15d; }
+.ai-workflow a { color: #ffb15d; }
+.ai-workflow a:hover { color: #fff; }
+.ai-workflow-note {
+  margin-top: 28px;
+  padding: 18px 20px;
+  border-left: 4px solid #f28c28;
+  border-radius: 4px;
+  background: #203c5d;
+}
+.ai-workflow-note strong { color: #ffb15d; }
