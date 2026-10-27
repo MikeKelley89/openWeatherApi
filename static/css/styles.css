@@ -78,3 +78,16 @@ a:focus-visible, button:focus-visible, input:focus-visible { outline: 3px solid 
   .wrap { width: calc(100% - 30px); }
   h1 { font-size: 2.55rem; }
 }
+
+
+/* API architecture diagram */
+.architecture{margin:38px auto 52px;padding:28px;background:#edf3f1;border:1px solid #dce8e5;border-radius:8px}
+.architecture h2{margin-top:0;letter-spacing:-.035em}
+.architecture>p:not(.eyebrow){max-width:850px;color:#586774}
+.architecture-flow{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr) auto minmax(0,1fr);align-items:stretch;gap:12px;margin:25px 0}
+.architecture-node{display:flex;flex-direction:column;gap:8px;padding:18px;background:#fff;border:1px solid #dce2e3;border-radius:7px;min-width:0}
+.architecture-node strong{color:#075e5a}
+.architecture-node span{font-size:.9rem;color:#586774}
+.architecture-arrow{align-self:center;font-size:1.5rem;color:#087e78}
+.architecture-secret{padding:14px 16px;background:#fff;border-left:4px solid #087e78;border-radius:3px}
+@media(max-width:680px){.architecture-flow{grid-template-columns:1fr}.architecture-arrow{transform:rotate(90deg);justify-self:center}}
