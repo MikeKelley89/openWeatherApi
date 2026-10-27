@@ -2,8 +2,7 @@
 (function ($) {
   "use strict";
 
-  // After deploying worker/, replace the placeholder hostname with your Worker URL.
-  const weatherEndpoint = "https://openweather-proxy.REPLACE-WITH-YOUR-CLOUDFLARE-SUBDOMAIN.workers.dev/weather";
+  const weatherEndpoint = "https://openweather-proxy.mikekelley89.workers.dev/weather";
   const $form = $("#localWeather");
   const $zip = $("#zip");
   const $button = $("#findWeather");
