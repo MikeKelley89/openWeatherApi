@@ -1,71 +1,95 @@
-$("#localWeather").submit(function (event) {
-  event.preventDefault();
-  getWeather();
-});
+/* OpenWeather demo client. API credentials are kept in a Cloudflare Worker secret. */
+(function ($) {
+  "use strict";
 
-$("#zip").on("keyup", function () {
-  $("#apiError").hide();
-  $("#alert").hide();
-  var zipValidate = new RegExp(/(^\d{5})$/);
-  var isValid = this.value.match(zipValidate);
-  if (isValid) {
-    $("#zipStatus").hide();
-    $("#findWeather").removeAttr("disabled", true);
-  } else {
-    $("#zipStatus").show();
-    $("#findWeather").attr("disabled", true);
-    $(".results").hide();
+  // After deploying worker/, replace the placeholder hostname with your Worker URL.
+  const weatherEndpoint = "https://openweather-proxy.REPLACE-WITH-YOUR-CLOUDFLARE-SUBDOMAIN.workers.dev/weather";
+  const $form = $("#localWeather");
+  const $zip = $("#zip");
+  const $button = $("#findWeather");
+  const $results = $(".results");
+  const $apiError = $("#apiError");
+  const $alert = $("#alert");
+
+  function clearWeather() {
+    $results.hide();
+    $apiError.hide();
+    $alert.hide();
   }
-});
 
-function getWeather() {
-  $.ajax({
-    url:
-      "https://api.openweathermap.org/geo/1.0/zip?zip=" +
-      document.getElementById("zip").value +
-      "&appid=48ced08bac40a7979644285e22addce1",
-    error: function (response) {
-      console.log(response);
-      $("#apiError").show();
-      $("#errorCode").text(response.status + ": ");
-      $("#errorMsg").text(response.statusText);
-      return false;
-    },
-    success: function (response) {
-      console.log(response);
-      $(".results").show();
-      $("#conditions").text("Conditions for " + response.name + "...");
-      $.ajax({
-        url:
-          "https://api.openweathermap.org/data/3.0/onecall?lat=" +
-          response.lat +
-          "&lon=" +
-          response.lon +
-          "&exclude=minutely,hourly&appid=48ced08bac40a7979644285e22addce1&units=imperial",
-        success: function (response) {
-          console.log(response);
-          $("#wind_speed").text(response.current.wind_speed);
-          $("#wind_direction").text(response.current.wind_deg);
-          $("#main_temp").text(response.current.temp);
-          $("#weather_conditions").text(
-            response.daily[0].summary +
-              ". Currently it looks like there's " +
-              response.current.weather[0].description +
-              "."
-          );
-          if (response.alerts) {
-            $("#alert").show();
-            $("div#alert #sender_name").text(response.alerts[0].sender_name);
-            $("div#alert #event").text(response.alerts[0].event);
-            var start = new Date(response.alerts[0].start * 1000);
-            var end = new Date(response.alerts[0].end * 1000);
-            $("div#alert #start").text(start.toLocaleTimeString("default"));
-            $("div#alert #end").text(end.toLocaleTimeString("default"));
-            $("div#alert #description").text(response.alerts[0].description);
-            $("div#alert #tags").text(response.alerts[0].tags[0]);
-          }
-        },
-      });
-    },
+  function validZip(value) {
+    return /^\d{5}$/.test(value);
+  }
+
+  function showError(xhr, fallback) {
+    const payload = xhr.responseJSON || {};
+    const message = payload.error && payload.error.message
+      ? payload.error.message
+      : fallback;
+    $("#errorCode").text(xhr.status ? xhr.status + ": " : "");
+    $("#errorMsg").text(message);
+    $apiError.show();
+  }
+
+  $zip.on("input", function () {
+    const zip = this.value.trim();
+    const valid = validZip(zip);
+    $button.prop("disabled", !valid);
+    $("#zipStatus").toggle(!valid);
+    if (!valid) clearWeather();
   });
-}
+
+  $form.on("submit", function (event) {
+    event.preventDefault();
+    const zip = $zip.val().trim();
+    if (!validZip(zip)) {
+      $("#zipStatus").show();
+      return;
+    }
+
+    clearWeather();
+    $button.prop("disabled", true);
+
+    $.ajax({
+      url: weatherEndpoint,
+      method: "GET",
+      data: { zip: zip },
+      dataType: "json",
+      timeout: 12000
+    }).done(function (payload) {
+      const location = payload.location || {};
+      const weather = payload.weather || {};
+      const current = weather.current || {};
+      const daily = (weather.daily && weather.daily[0]) || {};
+      const currentCondition = (current.weather && current.weather[0]) || {};
+
+      $("#conditions").text("Conditions for " + (location.name || "Selected location") + ", " + (location.country || "US") + "...");
+      $("#main_temp").text(Number.isFinite(current.temp) ? Math.round(current.temp) : "Unavailable");
+      $("#wind_speed").text(Number.isFinite(current.wind_speed) ? current.wind_speed : "Unavailable");
+      $("#wind_direction").text(Number.isFinite(current.wind_deg) ? current.wind_deg : "Unavailable");
+      $("#weather_conditions").text(
+        (daily.summary ? daily.summary + " " : "") +
+        (currentCondition.description ? "Currently: " + currentCondition.description + "." : "Current conditions are unavailable.")
+      );
+      $results.show();
+
+      const alerts = Array.isArray(weather.alerts) ? weather.alerts : [];
+      if (alerts.length) {
+        const alert = alerts[0];
+        $("#sender_name").text(alert.sender_name || "Weather service");
+        $("#event").text(alert.event || "Weather alert");
+        $("#start").text(alert.start ? new Date(alert.start * 1000).toLocaleString() : "Not provided");
+        $("#end").text(alert.end ? new Date(alert.end * 1000).toLocaleString() : "Not provided");
+        $("#description").text(alert.description || "No description provided.");
+        $("#tags").text(Array.isArray(alert.tags) ? alert.tags.join(", ") : "Not provided");
+        $alert.show();
+      }
+    }).fail(function (xhr, textStatus) {
+      showError(xhr, textStatus === "timeout"
+        ? "The request timed out. Please try again."
+        : "The weather service could not complete the lookup.");
+    }).always(function () {
+      $button.prop("disabled", !validZip($zip.val().trim()));
+    });
+  });
+})(jQuery);
